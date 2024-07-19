@@ -1,0 +1,24 @@
+- name: Fetch ram usage
+  win_shell: |    
+    # Systeminfo cmdlet used to retrieve various system information.
+    # The CSV format output is then converted into structured objects.
+
+    $sysinfo = Systeminfo -fo CSV | ConvertFrom-Csv
+    $avlRam = $sysinfo.'Available Physical Memory' #format : 32,450 MB
+    $totRam = $sysinfo.'Total Physical Memory'
+
+    # Split the string to separate numeric value and unit
+    $value1, $unit1 = $avlRam.Split(" ")
+    $value2, $unit2 = $totRam.Split(" ")
+
+    # Remove commas (if any) from the numeric value and Convert to 32-bit integer
+    $avlRam = [int32]($value1.Replace(",", ""))
+    $totRam = [int32]($value2.Replace(",", ""))
+
+    $usedRam = $totRam - $avlRam
+
+    #percentage ram usage
+    $percentRam = [int32](($usedRam * 100)/ $totRam )
+    Write-Output $percentRam
+
+  register: ram_usage

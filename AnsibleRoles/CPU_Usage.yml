@@ -1,0 +1,6 @@
+- name: Fetch cpu usage
+  win_shell: |
+    $avlcpu = Get-Counter '\Processor(_Total)\% Processor Time'            # ---> total CPU usage across all processors 
+    $cpuUsage = [int32]$avlcpu.CounterSamples.CookedValue                  # ---> extracting just the numerical percentage of CPU usage,
+    Write-Output $cpuUsage
+  register: cpu_usage
