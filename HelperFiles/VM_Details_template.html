@@ -1,0 +1,28 @@
+<html><head><style>
+  table{font-family:Arial,sans-serif;border-collapse:collapse;width:100%}
+  th,td{border:1px solid #ddd;text-align:left;padding:8px}
+  th{background-color:#f2f2f2}
+  .a{padding: 10px 20px;font-size: 16px;cursor: pointer;margin: 4px 2px;border: none;text-align: center;display: inline-block;text-decoration: none;border-radius: 4px;width: 150px;font-family: calibri;}
+  #approved{background-color: #357edd;color: white;}
+  #abort{background-color: #d32f2f;color: white;}
+  #manual{background-color: #4CAF50;color: white;width: auto;}
+  </style></head><body>
+  <h2>VM Details</h2>
+  <table>
+  <tr><th>Property</th><th>Value</th></tr>
+  <tr><td>VM Name</td><td>${ENV,var="VM_Name"}</td></tr>
+  <tr><td>OS</td><td>${ENV,var="OS"}</td></tr>
+  <tr><td>Cores</td><td>${ENV,var="Cores"}</td></tr>
+  <tr><td>RAM</td><td>${ENV,var="RAM"}</td></tr>
+  <tr><td>Region</td><td>${ENV,var="Region"}</td></tr>
+  <tr><td>Purpose</td><td>${ENV,var="Purpose"}</td></tr>
+  <tr><td>IP</td><td>${ENV,var="IP"}</td></tr>
+  <tr><td>Requested_by</td><td>${ENV,var="BUILD_USER"}</td></tr>
+  <tr><td>User_Email</td><td>${ENV,var="BUILD_USER_EMAIL"}</td></tr>
+  <tr><td>Jenkins Job</td><td>${ENV,var="JOB_NAME"}</td></tr>
+  <tr><td>Build Id</td><td>${ENV,var="BUILD_ID"}</td></tr>
+  </table>
+  <a href="http://10.13.28.68:5000/approve" class="a" id="approved">Approved</a>
+  <a href="http://10.13.28.68:5000/reject" class="a" id="abort">Abort</a>
+  <a href='${ENV,var="BUILD_URL"}/${ENV,var="jenkins_window"}' class="a" id="manual">Manual IP Using Jenkins</a>
+  </body></html>

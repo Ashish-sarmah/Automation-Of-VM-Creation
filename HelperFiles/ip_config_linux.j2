@@ -1,0 +1,19 @@
+#This is a configuration of the yaml file, which will be created by replacing the field "ip_address" dynamically during playbook execution.
+network:
+  version: 2
+  renderer: NetworkManager
+
+  ethernets:
+    # eth0 is the netowork interface for which these static IP configurations are set.
+    eth0:
+      dhcp4: no      # in order to set a static IP
+      addresses:
+        - "{{ ip_address }}/{{subnet_mask}}"
+      routes:
+        - to: default
+          via: "{{ gateway }}"
+      nameservers:
+        addresses:
+        - {{ dns1 }}
+        - {{ dns2 }}
+
