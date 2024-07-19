@@ -1,0 +1,60 @@
+---
+- name: Configure static IP with netplan
+  hosts: UBUNTU_VMs                                   # to configure all ubuntu VM's altogether pass in group name. But you can limit the hosts in a group using "--limit" flag I have used to execute this playbook.
+  gather_facts: no
+  vars:
+    ip_address: "{{ip_address}}"
+    gateway: "{{gateway}}"      
+    jinja_template_path: "HelperFiles/ip_config_linux.j2"
+    generated_ip_config_file: "HelperFiles/ip_config_linux.yaml"
+    
+  tasks:
+    - name: Wait until machine is up
+      wait_for_connection:       # dynamic wait till the created VM machine is pingable. Ansible use its builtin ping module.
+        delay: 10
+        timeout: 600
+      delegate_to: localhost
+
+    - name: Fetch dns, subnet_mask and netplan_dir from inventory
+      set_fact:    
+        subnet_mask: "{{subnet_mask}}"  
+        dns1: "{{dns1}}"  
+        dns2: "{{dns2}}"
+        netplan_dir: "{{netplan_dir}}"
+        network_manager_file: "{{network_manager_file}}"
+
+    - name: configure IP
+      become: yes
+      become_method: sudo
+      become_user: root
+      block:
+        - name: Generate ip_config file
+          become: yes
+          become_user: jenkins
+          delegate_to: localhost
+          template:
+            src: "{{jinja_template_path}}"
+            dest: "{{generated_ip_config_file}}"
+          vars:
+            ip_address: "{{ ip_address.stdout | trim }}"
+            gateway: "{{ gateway.stdout | trim}}"
+            subnet_mask: "{{subnet_mask.stdout | trim}}"
+            dns1: "{{dns1.stdout | trim}}"
+            dns2: "{{dns2.stdout | trim}}"
+
+        - name: Clean up netplan directory                   # in case some other yaml files are already present [except network manager file]
+          shell: |
+            find {{ netplan_dir }} -type f -not -name '{{network_manager_file}}' -delete  
+
+        - name: Copy netplan config file
+          copy:
+            src: "{{generated_ip_config_file}}"
+            dest: "{{netplan_dir}}/00-static-ip.yaml"        # path where the ip configuration file will be copied
+            owner: root
+            group: root
+            mode: 0600                                       #ip config files are sensitive , hence the access to group and other users should be minimal
+
+        - name: Apply netplan configuration with timeout and force completion
+          shell: |
+              nohup netplan apply > /dev/null 2>&1 & echo "netplan apply process is running in background"
+          register: netplanOutput

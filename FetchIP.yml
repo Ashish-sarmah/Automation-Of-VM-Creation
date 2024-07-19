@@ -1,0 +1,49 @@
+- name: Fetch IP
+  hosts: "{{region}}_SERVERS"
+  become: yes
+  become_method: runas
+  become_user: "{{ansible_user}}"
+  vars:
+    OS: "{{OS}}"
+    vm_name: "{{vm_name}}"
+    ip_address: "{{ip_address}}"
+    inventory_file: "InventoryFiles/hosts.ini"
+    Helper_Path: "HelperFiles"
+  tasks:
+    - name: fetch gateway
+      set_fact:
+        gateway: "{{gateway}}"   #need to fetch gateway here, since gateway is OS specific
+
+    - name: Static wait till VM is up
+      become: yes
+      become_user: jenkins
+      ansible.builtin.wait_for:
+        timeout: 180
+      delegate_to: localhost
+
+    - name: fetch Ip dynamically
+      win_shell: |
+        (Get-VMNetworkAdapter -VMName "{{vm_name}}" | Select-Object -ExpandProperty IPAddresses)[0]
+      register: CurrentIP
+
+    - name: Update IP field and call for configuring IP
+      become: yes
+      become_user: jenkins
+      delegate_to: localhost
+      block:
+        - name: Update inventory file with dynamic IP while preserving other fields
+          lineinfile:
+            path: "{{inventory_file}}"
+            regexp: '^({{ OS }} ansible_host=)(.*)$'
+            line: '{{ OS }} ansible_host={{ CurrentIP.stdout }} \2'
+            backrefs: yes 
+
+        - name: Configure Ubuntu VM if no alerts
+          when: OS == "Ubuntu_22.04" or OS == "Ubuntu_24.04"
+          ansible.builtin.raw: |                               # limit parameter is used to not let the playbook run on entire hosts in a host group. We can pass selective hosts.
+            ansible-playbook -i {{inventory_file}}  AssignIP_ubuntu.yml -e "ip_address={{ ip_address }} gateway={{gateway}}" --limit {{OS}}  
+
+        - name: Configure Windows VM if no alerts 
+          when: OS == "Windows_Server_2016" or OS == "Windows_Server_2019"     
+          ansible.builtin.raw: |                     # vm_name is passed to dynamically fetch IP of the created VM during runtime.
+            ansible-playbook -i {{inventory_file}}  AssignIP_windows.yml -e "ip_address={{ ip_address }} gateway={{gateway}}" --limit {{OS}}

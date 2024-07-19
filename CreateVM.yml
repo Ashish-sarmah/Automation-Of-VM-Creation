@@ -1,0 +1,64 @@
+---
+- name: Create a new Hyper-V VM
+  hosts: "{{region}}_SERVERS"
+  become: yes
+  become_method: runas
+  become_user: "{{ansible_user}}"
+  vars:
+    OS: "{{OS}}"
+    vm_name: "{{vm_name}}"
+    ram: "{{ram}}"
+    cores: "{{cores}}"
+    ip_address: "{{ip_address}}"
+    region: "{{region}}"
+    Inventory_Path: "InventoryFiles"
+    Helper_Path: "HelperFiles"
+
+  tasks:
+    - name: Set Switch Name ,Local Directory Paths and gateway/dns according to region using Inventory files
+      set_fact:
+        SwitchName: "{{SwitchName}}"
+        VM_dir: "{{VM_dir}}"
+        VHD_dir: "{{VHD_dir}}"
+        Avl_vhd_dir: "{{ Avl_vhd_dir}}"
+
+    - name: Create VM directory
+      win_file:
+        path: "{{VM_dir}}\\{{ vm_name }}"
+        state: directory
+
+    - name: Create VHD directory
+      win_file:
+        path: "{{VHD_dir}}\\{{ vm_name }}"
+        state: directory
+
+    - name: Set VHD path variables
+      set_fact:
+        vhd_path: "{{VHD_dir}}\\{{ vm_name }}\\{{OS}}.vhdx"
+        vhd_folder_path: "{{VHD_dir}}\\{{ vm_name }}"
+        vm_path: "{{VM_dir}}\\{{ vm_name }}"
+
+    - name: Copy VHD file
+      win_shell: |
+        Copy-Item -Path "{{Avl_vhd_dir}}\\{{OS}}.vhdx" -Destination "{{ vhd_folder_path }}"
+
+    - name: Create new VM
+      win_shell: |
+        New-VM -Name {{ vm_name }} -MemoryStartupBytes {{ram}} -Path {{ vm_path }} -VHDPath {{ vhd_path }} -SwitchName "{{ SwitchName }}"
+
+    - name: Set VM processor count
+      win_shell: |
+        Set-VM -Name {{ vm_name }} -ProcessorCount {{cores}}
+
+    - name: Start VM
+      win_shell: |
+        Start-VM -Name {{ vm_name }}
+
+    - name: Configure VM
+      become: yes
+      become_user: jenkins
+      delegate_to: localhost
+      block:
+        - name: Configure Windows VM if no alerts  
+          ansible.builtin.raw: |                     # vm_name is passed to dynamically fetch IP of the created VM during runtime.
+            ansible-playbook -i {{Inventory_Path}}/hosts.ini  FetchIP.yml -e "OS={{OS}} region={{region}} vm_name={{vm_name}} ip_address={{ ip_address }}"

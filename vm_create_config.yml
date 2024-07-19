@@ -1,0 +1,88 @@
+---
+- name: Create and configure a new Hyper-V VM
+  hosts: "{{region}}_SERVERS"
+  become: yes
+  become_method: runas
+  become_user: "{{ansible_user}}"
+  vars:
+    OS: "{{OS}}"
+    vm_name: "{{vm_name}}"
+    ram: "{{ram}}"
+    cores: "{{cores}}"
+    ip_address: "{{ip_address}}"
+    region: "{{region}}"
+    Roles_Path: "Ansible_Roles"
+    Inventory_Path: "InventoryFiles"
+    Helper_Path: "HelperFiles"
+    ram_limit: 80
+    cpu_limit: 90
+  tasks:
+    - name: Import RAM check statically
+      import_tasks: "{{Roles_Path}}/RAM_Usage.yml"
+
+    - name: Import cores check statically
+      import_tasks: "{{Roles_Path}}/CPU_Usage.yml"
+
+    - name: Get existing VM's name list
+      win_shell: |
+        Get-VM | Select-Object -ExpandProperty Name
+      register: vm_list
+
+    - name: VM Name list
+      set_fact: 
+        vm_names: "{{vm_list.stdout_lines}}"
+        vm_name_exists: false
+
+    - name: Check if vm_name field collides with any existing VM
+      set_fact:
+        vm_name_exists: true
+      when: item == vm_name
+      loop: "{{vm_names}}"
+      no_log: true
+
+    - name: Fail if VM name already exists
+      fail:
+        msg: "{{ vm_name }} already in use. Provide another one."
+      when: vm_name_exists | bool
+
+    - name: Check if RAM Utilization is more than 80%
+      set_fact:
+        ram_alert: "{{ (ram_usage.stdout | int) > ram_limit }}"
+
+    - name: Check if CPU Utilization is More Than 90%
+      set_fact:
+        cpu_alert: "{{ (cpu_usage.stdout | int) > cpu_limit }}"
+
+    - name: Display RAM Usage
+      debug:
+        msg: |
+            CPU_Usage: {{ cpu_usage.stdout }}%    RAM_Usage: {{ ram_usage.stdout }}% 
+
+    - name: Save alerts in error.log file if any
+      become: yes
+      become_user: jenkins
+      delegate_to: localhost
+      block:
+
+        - name: Alert if RAM Utilization is More Than 80%
+          when: ram_alert
+          ansible.builtin.copy:
+            content: "RAM utilization is more than 80%! Current % utilization: {{ ram_usage.stdout }}"
+            dest: ./error.log
+
+        - name: Alert if CPU Utilization is More Than 50% of Total Cores
+          when: cpu_alert
+          ansible.builtin.copy:
+            content: "CPU utilization is above 90%! Current % utilization: {{ cpu_usage.stdout }}"
+            dest: ./error.log
+
+    - name: Create and Configure VM if no alerts
+      when: not ram_alert and not cpu_alert
+      become: yes
+      become_user: jenkins     
+      delegate_to: localhost
+      block:
+        - name: Create VM
+          ansible.builtin.raw: |
+            ansible-playbook -i {{Inventory_Path}}/hosts.ini CreateVM.yml -e "vm_name={{ vm_name}} OS={{ OS }} ram={{ ram }} cores={{ cores }} ip_address={{ ip_address }} region={{region}}"
+

@@ -1,0 +1,33 @@
+- name: Configure IP
+  hosts: WINDOWS_VMs
+  become: yes
+  become_method: runas
+  become_user: "{{ansible_user}}"
+  vars:
+    local_script_path: "HelperFiles/IP_config_windows.ps1"
+    ip_address: "{{ip_address}}"
+    gateway: "{{gateway}}"
+    
+  tasks:
+    - name: Fetch dns, subnet_mask and remote path from inventory
+      set_fact:    
+        subnet_mask: "{{subnet_mask}}"  
+        dns1: "{{dns1}}"  
+        dns2: "{{dns2}}" 
+        remote_script_dir: "{{remote_script_dir}}"
+
+    - name: Ensure folder exists
+      win_file:
+        path: "{{remote_script_dir}}"
+        state: directory
+
+    - name: Copy powershell script
+      win_copy:
+        src: "{{local_script_path}}"
+        dest: "{{remote_script_dir}}/IP_config_windows.ps1"
+
+    - name: Run PowerShell script to update IP
+      win_shell: |
+        & '{{ remote_script_dir }}/IP_config_windows.ps1' -newIP '{{ ip_address }}' -prefixLength '{{ subnet_mask }}' -gateway '{{ gateway }}' -dns1 '{{ dns1 }}' -dns2 '{{dns2}}'
+      register: script_output
+      ignore_errors: yes
